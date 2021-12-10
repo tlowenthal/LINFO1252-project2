@@ -41,8 +41,17 @@ int main(int argc, char **argv) {
 
     ret = exists(fd, "lib_tar.c");
     printf("exists returned %d\n", ret);
-    ret = exists(fd, "lib_tar.f");
-    printf("exists returned %d\n", ret);
 
+    ret = is_dir(fd, "lib_tar.c");
+    printf("is_dir returned %d\n", ret);
+
+    ret = is_file(fd, "lib_tar.c");
+    printf("is_file returned %d\n", ret);
+
+    ret = is_symlink(fd, "lib_tar.c");
+    printf("is_symlink returned %d\n", ret);
+
+    printf("should have returned : 0, 1, 0, 1, 0\n");
+    
     return 0;
 }

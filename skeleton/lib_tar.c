@@ -85,7 +85,7 @@ int exists(int tar_fd, char *path) {
             }
         }
 
-        nb++;
+        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
     }
 }
 
@@ -116,7 +116,7 @@ int is_dir(int tar_fd, char *path) {
             }
         }
 
-        nb++;
+        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
     }
 }
 
@@ -147,7 +147,7 @@ int is_file(int tar_fd, char *path) {
             }
         }
 
-        nb++;
+        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
     }
 }
 
@@ -177,7 +177,7 @@ int is_symlink(int tar_fd, char *path) {
             }
         }
 
-        nb++;
+        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
     }
 }
 
