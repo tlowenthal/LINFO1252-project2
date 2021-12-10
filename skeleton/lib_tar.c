@@ -17,31 +17,45 @@
  */
 int check_archive(int tar_fd) {
 
-    //read tar in tar_header buffer
-    tar_header_t buf;
-    if (read(tar_fd, &buf, sizeof(tar_header_t)) < 0) perror("read error in check_archive");
+    int nb = 0;
 
-    //checking for version and magic
-    if (strcmp(buf.magic, TMAGIC)) return -1;
-    if (buf.version[0] != TVERSION[0] && buf.version[1] != TVERSION[1]) return -2;//this is needed because strcmp adding "/0" or not is ambiguous
+    while (1){
 
-    //checking for checksum
+        //read tar in tar_header buffer
+        tar_header_t buf;
+        if (pread(tar_fd, &buf, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("read error in check_archive");
 
-    //first store value from header
-    uint sum = TAR_INT(buf.chksum);
+        if (!strlen((char *) &buf)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in check_archive\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
 
-    //then calculate checksum ourselves
-    if (memset(buf.chksum, ' ', 8) == NULL) perror("memset error in check_archive");//replace checksum bytes with spaces
-    uint8_t *mapping = (uint8_t *) &buf;
-    uint count = 0;
-    for (int i = 0; i < BLOCKSIZE; i++){
-        count += *(mapping++);
+        //checking for version and magic
+        if (strcmp(buf.magic, TMAGIC)) return -1;
+        if (buf.version[0] != TVERSION[0] && buf.version[1] != TVERSION[1]) return -2;//this is needed because strcmp adding "/0" or not is ambiguous
+
+        //checking for checksum
+
+        //first store value from header
+        uint sum = TAR_INT(buf.chksum);
+
+        //then calculate checksum ourselves
+        if (memset(buf.chksum, ' ', 8) == NULL) perror("memset error in check_archive");//replace checksum bytes with spaces
+        uint8_t *mapping = (uint8_t *) &buf;
+        uint count = 0;
+        for (int i = 0; i < BLOCKSIZE; i++){
+            count += *(mapping++);
+        }
+
+        //we can finally check
+        if (sum != count) return -3;
+
+        nb += (2 + TAR_INT(buf.size)/BLOCKSIZE);
+
     }
-
-    //we can finally check
-    if (sum != count) return -3;
-
-    return 0;
 }
 
 /**
