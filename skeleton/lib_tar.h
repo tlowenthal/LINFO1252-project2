@@ -5,12 +5,10 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 
 typedef struct posix_header
 {                              /* byte offset */
@@ -37,6 +35,7 @@ typedef struct posix_header
 #define TMAGLEN  6
 #define TVERSION "00"           /* 00 and no null */
 #define TVERSLEN 2
+#define BLOCKSIZE 512
 
 /* Values used in typeflag field.  */
 #define REGTYPE  '0'            /* regular file */

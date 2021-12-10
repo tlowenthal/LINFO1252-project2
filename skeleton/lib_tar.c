@@ -16,63 +16,31 @@
  *         -3 if the archive contains a header with an invalid checksum value
  */
 int check_archive(int tar_fd) {
-    /*
 
-    //define values
-    char *mag = malloc(6*sizeof(char));
-    char *vers = malloc(2*sizeof(char));
-    char *sum = malloc(8*sizeof(char));
+    //read tar in tar_header buffer
+    tar_header_t buf;
+    if (read(tar_fd, &buf, sizeof(tar_header_t)) < 0) perror("read error in check_archive");
 
-    //store and check size
-    struct stat buf;
-    if (fstat(tar_fd, &buf) < 0) perror("fstat failed in check_archive");
-    size_t size = buf.st_size;
-    if (size < 512) perror("file not long enough");
+    //checking for version and magic
+    if (strcmp(buf.magic, TMAGIC)) return -1;
+    if (buf.version[0] != TVERSION[0] && buf.version[1] != TVERSION[1]) return -2;//this is needed because strcmp adding "/0" or not is ambiguous
 
-    //file mapping
-    char *mapper = (char *) mmap(NULL, size, PROT_READ, MAP_SHARED, tar_fd, 0);
-    if (mapper == MAP_FAILED) perror("map failed in check_archive");
+    //checking for checksum
 
-    //get actual checkcount
-    memset(mapper + 148, ' ', 8);//set checkcount to spaces to perform counting
-    int count = 0;
-    //char *increment = malloc(8);
-    //for (int i = 0; i < 512/8; i+=8){
-        //memcpy(increment, mapper + i, 8);
-        //count += TAR_INT(increment);
-    //}
+    //first store value from header
+    uint sum = TAR_INT(buf.chksum);
 
-    //read and store values
-    if (pread(tar_fd, (void *) mag, 6, 257) < 0) perror("magic pread failed in check_archive");
-    if (pread(tar_fd, (void *) vers, 2, 263) < 0) perror("version pread failed in check_archive");
-    if (pread(tar_fd, (void *) sum, 8, 148) < 0) perror("checksum pread failed in check_archive");
-
-    //checking
-    if (strcmp(mag, TMAGIC)) return -1;
-    if (strcmp(vers, TVERSION)) return -2;
-    printf("%ld\n", sizeof(sum));
-    printf("%ld\n", sizeof(uint32_t));
-    if (TAR_INT(sum) != count) return -3;
-    return 0;
-    */
-
-    tar_header_t *buf = malloc(sizeof(tar_header_t));
-    if (read(tar_fd, buf, sizeof(tar_header_t)) < 0) perror("read error in check_archive");
-    if (strcmp(buf->magic, TMAGIC)) return -1;
-    if (buf->version[0] != TVERSION[0] && buf->version[1] != TVERSION[1]) return -2;
-
-
-    uint8_t sum = TAR_INT(buf->chksum);
-    if (memset(buf->chksum, 32, 8) == NULL) perror("memset error in check_archive");
-    uint8_t *mapping = (uint8_t *) buf;
-    uint8_t count = 0;
-    for (int i = 0; i < 512/8; i++){
+    //then calculate checksum ourselves
+    if (memset(buf.chksum, ' ', 8) == NULL) perror("memset error in check_archive");//replace checksum bytes with spaces
+    uint8_t *mapping = (uint8_t *) &buf;
+    uint count = 0;
+    for (int i = 0; i < BLOCKSIZE; i++){
         count += *(mapping++);
     }
 
-    printf("%d\n", count);
-    printf("%d\n", sum);
+    //we can finally check
     if (sum != count) return -3;
+
     return 0;
 }
 
@@ -86,7 +54,25 @@ int check_archive(int tar_fd) {
  *         any other value otherwise.
  */
 int exists(int tar_fd, char *path) {
-    return 0;
+
+    int nb = 0;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in exists\n");
+
+        if (!strcmp(header.name, path)) return 1;
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in exists\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        nb++;
+    }
 }
 
 /**
@@ -99,7 +85,25 @@ int exists(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_dir(int tar_fd, char *path) {
-    return 0;
+
+    int nb = 0;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in is_dir\n");
+
+        if (!strcmp(header.name, path) && header.typeflag == DIRTYPE) return 1;
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in is_dir\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        nb++;
+    }
 }
 
 /**
@@ -112,7 +116,25 @@ int is_dir(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_file(int tar_fd, char *path) {
-    return 0;
+
+    int nb = 0;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in is_file\n");
+
+        if (!strcmp(header.name, path) && (header.typeflag == REGTYPE || header.typeflag == AREGTYPE)) return 1;
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in is_file\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        nb++;
+    }
 }
 
 /**
@@ -124,7 +146,25 @@ int is_file(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_symlink(int tar_fd, char *path) {
-    return 0;
+    
+    int nb = 0;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in is_symlink\n");
+
+        if (!strcmp(header.name, path) && (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE)) return 1;
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in is_symlink\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        nb++;
+    }
 }
 
 
