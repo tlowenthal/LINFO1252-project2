@@ -53,8 +53,11 @@ int check_archive(int tar_fd) {
         //we can finally check
         if (sum != count) return -3;
 
-        nb += (2 + TAR_INT(buf.size)/BLOCKSIZE);
-
+        if (TAR_INT(buf.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(buf.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(buf.size)/BLOCKSIZE);
+        }
     }
 }
 
@@ -85,7 +88,11 @@ int exists(int tar_fd, char *path) {
             }
         }
 
-        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
     }
 }
 
@@ -116,7 +123,11 @@ int is_dir(int tar_fd, char *path) {
             }
         }
 
-        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
     }
 }
 
@@ -147,7 +158,11 @@ int is_file(int tar_fd, char *path) {
             }
         }
 
-        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
     }
 }
 
@@ -160,7 +175,7 @@ int is_file(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_symlink(int tar_fd, char *path) {
-    
+
     int nb = 0;
 
     while (1){
@@ -177,8 +192,14 @@ int is_symlink(int tar_fd, char *path) {
             }
         }
 
-        nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
+
     }
+
 }
 
 
@@ -205,7 +226,56 @@ int is_symlink(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
-    return 0;
+
+    //fonctionne presque, ca met tous les sous-fichiers (y compris d dans l'exemple)
+
+    int nb = 0;
+    int index = 0;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+
+        if (!strcmp(header.name, path)){
+            if (header.typeflag == DIRTYPE){
+                int nb2 = nb + 1;
+                while(1){
+                    tar_header_t entry;
+                    if (pread(tar_fd, &entry, sizeof(tar_header_t), (nb2)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+
+                    if (!strncmp(entry.name, path, strlen(path))){
+                        memcpy(entries[index], entry.name, strlen(entry.name));
+                        index++;
+                    } else if (!(header.typeflag == LNKTYPE || header.typeflag == SYMTYPE)){
+                        *no_entries = index;
+                        return 1;
+                    }
+                    if (TAR_INT(entry.size)%BLOCKSIZE == 0){
+                        nb2 += (1 + TAR_INT(entry.size)/BLOCKSIZE);
+                    } else {
+                        nb2 += (2 + TAR_INT(entry.size)/BLOCKSIZE);
+                    }
+                }
+            } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){
+                list(tar_fd, header.linkname, entries, no_entries);
+            }
+        }
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
+    }
+
 }
 
 /**

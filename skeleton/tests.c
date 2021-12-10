@@ -38,20 +38,46 @@ int main(int argc, char **argv) {
 
     int ret = check_archive(fd);
     printf("check_archive returned %d\n", ret);
+    printf("should have returned : 0\n\n");
 
-    ret = exists(fd, "lib_tar.c");
+    ret = exists(fd, "dir1/folder1/file1.txt");
     printf("exists returned %d\n", ret);
+    ret = exists(fd, "dir1/folder1/");
+    printf("exists returned %d\n", ret);
+    ret = exists(fd, "di");
+    printf("exists returned %d\n", ret);
+    printf("should have returned : 1, 1, 0\n\n");
 
-    ret = is_dir(fd, "lib_tar.c");
+    ret = is_dir(fd, "dir1/folder1/");
     printf("is_dir returned %d\n", ret);
+    ret = is_dir(fd, "dir1/folder1/file1.txt");
+    printf("is_dir returned %d\n", ret);
+    printf("should have returned : 1, 0\n\n");
 
-    ret = is_file(fd, "lib_tar.c");
+    ret = is_file(fd, "dir1/folder1/");
     printf("is_file returned %d\n", ret);
+    ret = is_file(fd, "dir1/folder1/file1.txt");
+    printf("is_file returned %d\n", ret);
+    printf("should have returned : 0, 1\n\n");
 
-    ret = is_symlink(fd, "lib_tar.c");
+    ret = is_symlink(fd, "dir1");
     printf("is_symlink returned %d\n", ret);
+    printf("should have returned : 0\n\n");
 
-    printf("should have returned : 0, 1, 0, 1, 0\n");
-    
+    size_t len = 100;
+    char *entries[len];
+    for (int i = 0; i < 100; i++){
+        entries[i] = malloc(100);
+    }
+    ret = list(fd, "dir1/", entries, &len);
+    printf("list returned %d\n", ret);
+    printf("should have returned : 1\n");
+    for (int i = 0; i < len; i++){
+        printf("%s\n", entries[i]);
+    }
+    for (int i = 0; i < 100; i++){
+        free(entries[i]);
+    }
+
     return 0;
 }
