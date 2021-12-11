@@ -17,14 +17,15 @@
  */
 int check_archive(int tar_fd) {
 
-    int nb = 0;
+    int nb = 0;//track where we are in the archive, at which block
 
     while (1){
 
-        //read tar in tar_header buffer
+        //read block in tar_header buffer
         tar_header_t buf;
         if (pread(tar_fd, &buf, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("read error in check_archive");
 
+        //if the block is filled with "\0" (so strlen == 0), check if the following one is also filled with "\0", and if so return 0
         if (!strlen((char *) &buf)){
             tar_header_t header2;
             if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in check_archive\n");
@@ -53,11 +54,14 @@ int check_archive(int tar_fd) {
         //we can finally check
         if (sum != count) return -3;
 
-        if (TAR_INT(buf.size)%BLOCKSIZE == 0){
+        //here we go to the next header
+        if (TAR_INT(buf.size)%BLOCKSIZE == 0){// if all file blocks are exactly full (no padding)
             nb += (1 + TAR_INT(buf.size)/BLOCKSIZE);
         } else {
             nb += (2 + TAR_INT(buf.size)/BLOCKSIZE);
         }
+
+        //the four next function follow the exact same technique !
     }
 }
 
@@ -227,25 +231,28 @@ int is_symlink(int tar_fd, char *path) {
  */
 int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
 
-    //fonctionne presque, ca met tous les sous-fichiers (y compris d dans l'exemple)
-
     int nb = 0;
-    int index = 0;
+    int index = 0;//inedxes entries
 
     while (1){
         tar_header_t header;
         if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
 
-        if (!strcmp(header.name, path)){
-            if (header.typeflag == DIRTYPE){
-                int nb2 = nb + 1;
+        if (!strcmp(header.name, path)){//we need to check if it is either a directory or a symlink
+            if (header.typeflag == DIRTYPE){//if directory, we can list its entries
+                int nb2 = nb + 1;//start with next header
+                char *record = malloc(100);//this record will help us avoid listing sub-entries
+                strcpy(record, "/");//we are certain "/" cannot be the name of an entry
                 while(1){
                     tar_header_t entry;
                     if (pread(tar_fd, &entry, sizeof(tar_header_t), (nb2)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
 
-                    if (!strncmp(entry.name, path, strlen(path))){
-                        memcpy(entries[index], entry.name, strlen(entry.name));
-                        index++;
+                    if (!strncmp(entry.name, path, strlen(path))){//compare beginning to check if it is an entry
+                        if (strncmp(entry.name, record, strlen(record))){//compare with previous record to make sure it is not a sub-entry
+                            memcpy(entries[index], entry.name, strlen(entry.name));//if it is an entry but not a sub-entry, we copy it to entries
+                            index++;
+                            strcpy(record, entry.name);//update record to the entry that was listed last
+                        }
                     } else if (!(header.typeflag == LNKTYPE || header.typeflag == SYMTYPE)){
                         *no_entries = index;
                         return 1;
@@ -256,7 +263,8 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
                         nb2 += (2 + TAR_INT(entry.size)/BLOCKSIZE);
                     }
                 }
-            } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){
+                free(record);
+            } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){//if symlink, we run list with the linked-to directory
                 list(tar_fd, header.linkname, entries, no_entries);
             }
         }
