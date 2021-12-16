@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 100; i++){
         entries[i] = malloc(100);
     }
-    ret = list(fd, "test_files/dir1", entries, &len);
+    ret = list(fd, "dir1/", entries, &len);
     printf("list returned %d\n", ret);
     printf("should have returned : 1\n");
     for (int i = 0; i < len; i++){
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     printf("read_file returned %ld\n", bytes_left);
     //printf("should have returned : 1\n");
     printf("%s\n", (char *) buffer);
-    printf("%ld bytes were written to the destination buffer\n", len);
+    printf("%ld bytes were written to the destination buffer.\n", len);
 
 
     return 0;
