@@ -18,6 +18,7 @@
 int check_archive(int tar_fd) {
 
     int nb = 0;//track where we are in the archive, at which block
+    int nb_headers = 0;//header count to be returned
 
     while (1){
 
@@ -30,7 +31,7 @@ int check_archive(int tar_fd) {
             tar_header_t header2;
             if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in check_archive\n");
             if (!strlen((char *) &header2)){
-                return 0;
+                return nb_headers;
             }
         }
 
@@ -60,6 +61,7 @@ int check_archive(int tar_fd) {
         } else {
             nb += (2 + TAR_INT(buf.size)/BLOCKSIZE);
         }
+        nb_headers++;//increment number of headers
 
         //the four next function follow the exact same technique !
     }
@@ -265,7 +267,7 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
                 }
                 free(record);
             } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){//if symlink, we run list with the linked-to directory
-                list(tar_fd, header.linkname, entries, no_entries);
+                return list(tar_fd, header.linkname, entries, no_entries);
             }
         }
 
