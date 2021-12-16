@@ -76,6 +76,8 @@ int check_archive(int tar_fd) {
  */
 int exists(int tar_fd, char *path) {
 
+    //devrait check archive avant de procéder
+
     int nb = 0;
 
     while (1){
@@ -110,6 +112,8 @@ int exists(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_dir(int tar_fd, char *path) {
+
+    //devrait utiliser exist avant
 
     int nb = 0;
 
@@ -146,6 +150,8 @@ int is_dir(int tar_fd, char *path) {
  */
 int is_file(int tar_fd, char *path) {
 
+    //devrait utiliser exist avant
+
     int nb = 0;
 
     while (1){
@@ -179,6 +185,8 @@ int is_file(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int is_symlink(int tar_fd, char *path) {
+
+    //devrait utiliser exist
 
     int nb = 0;
 
@@ -230,6 +238,8 @@ int is_symlink(int tar_fd, char *path) {
  *         any other value otherwise.
  */
 int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
+
+    //devrait utiliser is_dir/is_symlink et eventuellement is_file
 
     int nb = 0;
     int index = 0;//inedxes entries
@@ -305,5 +315,58 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
  *
  */
 ssize_t read_file(int tar_fd, char *path, size_t offset, uint8_t *dest, size_t *len) {
-    return 0;
+
+    int link = 0;
+
+    printf("%s\n", path);
+
+    if(is_file(tar_fd, path)==0){
+        if(is_symlink(tar_fd, path)==0){
+            perror("path given to read_file is invalid.\n");
+            return -1;
+        }else{ link=1; }
+    }
+
+    int nb = 0;
+    int bytes_to_read;
+
+    while (1){
+        tar_header_t header;
+        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in read_file\n");
+
+        if (!strcmp(header.name, path)){//if we find the file
+            if (link){//if link, we run read_file on the link
+                return read_file(tar_fd, header.linkname, offset, dest, len);
+            }else{
+                bytes_to_read = TAR_INT(header.size) - offset; //number of bytes we should read to get to the end of the file
+                if(bytes_to_read < 0){
+                    perror("read_file error: the offset is outside of the file size.\n");
+                    return -2;
+                }else{
+                    if(bytes_to_read <= *len){ //dest buffer size is long enough to read until the end of the file
+                        *len = (size_t) bytes_to_read; //len is set to the number of bytes written to dest
+                        pread(tar_fd, dest, *len, (nb+1)*sizeof(tar_header_t) + offset);
+                        return 0;
+                    }else{  //dest buffer is too short to reach the end of the file
+                        pread(tar_fd, dest, *len, (nb+1)*sizeof(tar_header_t) + offset);
+                        return bytes_to_read - *len;
+                    }
+                }
+            }
+        }
+
+        if (!strlen((char *) &header)){
+            tar_header_t header2;
+            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in read_file\n");
+            if (!strlen((char *) &header2)){
+                return 0;
+            }
+        }
+
+        if (TAR_INT(header.size)%BLOCKSIZE == 0){
+            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+        } else {
+            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+        }
+    }
 }

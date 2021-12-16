@@ -69,15 +69,26 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 100; i++){
         entries[i] = malloc(100);
     }
-    ret = list(fd, "dir1/", entries, &len);
+    ret = list(fd, "test_files/dir1", entries, &len);
     printf("list returned %d\n", ret);
     printf("should have returned : 1\n");
     for (int i = 0; i < len; i++){
         printf("%s\n", entries[i]);
     }
+    printf("\n");
     for (int i = 0; i < 100; i++){
         free(entries[i]);
     }
+
+    len = 1000;
+    uint8_t buffer[len];
+    size_t offset = 0;
+    ssize_t bytes_left = read_file(fd, "test_files/dir1/folder1/file2.txt", offset, buffer, &len);
+    printf("read_file returned %ld\n", bytes_left);
+    //printf("should have returned : 1\n");
+    printf("%s\n", (char *) buffer);
+    printf("%ld bytes were written to the destination buffer\n", len);
+
 
     return 0;
 }
