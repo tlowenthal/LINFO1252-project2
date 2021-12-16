@@ -273,6 +273,7 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
             tar_header_t header2;
             if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
             if (!strlen((char *) &header2)){
+                *no_entries = 0;
                 return 0;
             }
         }
