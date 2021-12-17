@@ -24,6 +24,26 @@ void debug_dump(const uint8_t *bytes, size_t len) {
     }
 }
 
+void test_list(int fd, char *path){
+
+    size_t len = 100;
+    char *entries[len];
+    for (int i = 0; i < len; i++){
+        entries[i] = malloc(100);
+    }
+
+    int ret = list(fd, path, entries, &len);
+    printf("list returned %d\n", ret);
+
+    for (int i = 0; i < len; i++){
+        printf("%s\n", entries[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < 100; i++){
+        free(entries[i]);
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("Usage: %s tar_file\n", argv[0]);
@@ -38,7 +58,15 @@ int main(int argc, char **argv) {
 
     int ret = check_archive(fd);
     printf("check_archive returned %d\n", ret);
-    printf("should have returned : 0\n\n");
+    printf("should have returned : 14\n\n");
+
+    ret = is_symlink(fd, "testlinktofile");
+    printf("is_symlink returned %d\n", ret);
+    printf("should have returned : 1\n\n");
+
+    test_list(fd, "dir2");
+
+    /*
 
     ret = exists(fd, "dir1/folder1/file1.txt");
     printf("exists returned %d\n", ret);
@@ -63,32 +91,15 @@ int main(int argc, char **argv) {
     ret = is_symlink(fd, "dir1");
     printf("is_symlink returned %d\n", ret);
     printf("should have returned : 0\n\n");
+    */
 
-    size_t len = 100;
-    char *entries[len];
-    for (int i = 0; i < 100; i++){
-        entries[i] = malloc(100);
-    }
-    ret = list(fd, "dir1/", entries, &len);
-    printf("list returned %d\n", ret);
-    printf("should have returned : 1\n");
-    for (int i = 0; i < len; i++){
-        printf("%s\n", entries[i]);
-    }
-    printf("\n");
-    for (int i = 0; i < 100; i++){
-        free(entries[i]);
-    }
-
-    len = 1000;
+    size_t len = 1000;
     uint8_t buffer[len];
     size_t offset = 0;
-    ssize_t bytes_left = read_file(fd, "test_files/dir1/folder1/file2.txt", offset, buffer, &len);
+    ssize_t bytes_left = read_file(fd, "fichier5", offset, buffer, &len);
     printf("read_file returned %ld\n", bytes_left);
     //printf("should have returned : 1\n");
-    printf("%s\n", (char *) buffer);
     printf("%ld bytes were written to the destination buffer.\n", len);
-
 
     return 0;
 }

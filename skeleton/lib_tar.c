@@ -216,6 +216,27 @@ int is_symlink(int tar_fd, char *path) {
 
 }
 
+int check(char *s,char c)
+{
+    int count=0;
+    for(int i=0;s[i];i++)  {
+        if(s[i]==c) count++;
+ 	}
+ 	return count; 		  
+}
+
+int is_entry_but_not_sub(char *dir, char* entry){
+    if (!strncmp(dir, entry, strlen(dir)) && strlen(dir) < strlen(entry)){// starts the same but entry must be longer
+        if (check(dir, '/') == check(entry, '/')){
+            return 1;
+        } else if (check(dir, '/') + 1 == check(entry, '/') && entry[strlen(entry) - 1] == '/'){
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 
 /**
  * Lists the entries at a given path in the archive.
@@ -242,7 +263,7 @@ int is_symlink(int tar_fd, char *path) {
 int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
 
     //devrait utiliser is_dir/is_symlink et eventuellement is_file
-
+    /*
     int nb = 0;
     int index = 0;//inedxes entries
 
@@ -259,15 +280,20 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
                     tar_header_t entry;
                     if (pread(tar_fd, &entry, sizeof(tar_header_t), (nb2)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
 
+                    if (!strlen((char *) &entry)){
+                        tar_header_t entry2;
+                        if (pread(tar_fd, &entry2, sizeof(tar_header_t), (nb2+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+                        if (!strlen((char *) &entry2)){
+                            *no_entries = index;
+                            return 1;
+                        }
+                    }
                     if (!strncmp(entry.name, path, strlen(path))){//compare beginning to check if it is an entry
                         if (strncmp(entry.name, record, strlen(record))){//compare with previous record to make sure it is not a sub-entry
                             memcpy(entries[index], entry.name, strlen(entry.name));//if it is an entry but not a sub-entry, we copy it to entries
                             index++;
                             strcpy(record, entry.name);//update record to the entry that was listed last
                         }
-                    } else if (!(header.typeflag == LNKTYPE || header.typeflag == SYMTYPE)){
-                        *no_entries = index;
-                        return 1;
                     }
                     if (TAR_INT(entry.size)%BLOCKSIZE == 0){
                         nb2 += (1 + TAR_INT(entry.size)/BLOCKSIZE);
@@ -296,7 +322,69 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
             nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
         }
     }
+    */
 
+    int link = 0;
+    int nb = 0;
+    int index = 0;
+
+    if(is_dir(tar_fd, path)==0){
+        if(is_symlink(tar_fd, path)==0){
+            perror("path given to list is invalid.\n");
+            *no_entries = 0;
+            return 0;
+        }else{ link=1; }
+    }
+
+    if (link){
+        while(1){
+            tar_header_t header;
+            if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+
+            if (!strcmp(header.name, path)){//when we find the symbolic link
+                int ret = list(tar_fd, strcat(header.linkname, "/") + 2, entries, no_entries);
+                if (ret){
+                    return ret;
+                }
+                return list(tar_fd, header.linkname, entries, no_entries);
+            }
+
+            if (TAR_INT(header.size)%BLOCKSIZE == 0){
+                nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+            } else {
+                nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+            }
+        }
+    } else {
+        while(1){
+            tar_header_t header;
+            if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+
+            if (is_entry_but_not_sub(path, header.name)){
+                if (index < *no_entries){
+                    memcpy(entries[index], header.name, strlen(header.name));//if it is an entry but not a sub-entry, we copy it to entries
+                    index++;
+                } else {
+                    return 1;
+                }
+            }
+
+            if (!strlen((char *) &header)){
+                tar_header_t header2;
+                if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
+                if (!strlen((char *) &header2)){
+                    *no_entries = index;
+                    return 1;
+                }
+            }
+
+            if (TAR_INT(header.size)%BLOCKSIZE == 0){
+                nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
+            } else {
+                nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
+            }
+        }
+    }
 }
 
 /**
@@ -339,7 +427,10 @@ ssize_t read_file(int tar_fd, char *path, size_t offset, uint8_t *dest, size_t *
 
         if (!strcmp(header.name, path)){//if we find the file
             if (link){//if link, we run read_file on the link
-                return read_file(tar_fd, header.linkname, offset, dest, len);
+                if (is_file(tar_fd, header.linkname)){
+                    return read_file(tar_fd, header.linkname, offset, dest, len);
+                }
+                return read_file(tar_fd, strcat(header.linkname, "/") + 2, offset, dest, len);
             }else{
                 bytes_to_read = TAR_INT(header.size) - offset; //number of bytes we should read to get to the end of the file
                 if(bytes_to_read < 0){
