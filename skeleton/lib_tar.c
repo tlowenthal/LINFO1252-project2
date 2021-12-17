@@ -277,7 +277,11 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
                 }
                 free(record);
             } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){//if symlink, we run list with the linked-to directory
-                return list(tar_fd, header.linkname, entries, no_entries);
+                if (is_file(tar_fd, header.linkname + 2)){
+                    printf("%s\n", header.linkname + 2);
+                    return list(tar_fd, header.linkname + 2, entries, no_entries);
+                }
+                return list(tar_fd, strcat(header.linkname, "/") + 2, entries, no_entries);
             }
         }
 
