@@ -263,66 +263,6 @@ int is_entry_but_not_sub(char *dir, char* entry){
 int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
 
     //devrait utiliser is_dir/is_symlink et eventuellement is_file
-    /*
-    int nb = 0;
-    int index = 0;//inedxes entries
-
-    while (1){
-        tar_header_t header;
-        if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
-
-        if (!strcmp(header.name, path)){//we need to check if it is either a directory or a symlink
-            if (header.typeflag == DIRTYPE){//if directory, we can list its entries
-                int nb2 = nb + 1;//start with next header
-                char *record = malloc(100);//this record will help us avoid listing sub-entries
-                strcpy(record, "/");//we are certain "/" cannot be the name of an entry
-                while(1){
-                    tar_header_t entry;
-                    if (pread(tar_fd, &entry, sizeof(tar_header_t), (nb2)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
-
-                    if (!strlen((char *) &entry)){
-                        tar_header_t entry2;
-                        if (pread(tar_fd, &entry2, sizeof(tar_header_t), (nb2+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
-                        if (!strlen((char *) &entry2)){
-                            *no_entries = index;
-                            return 1;
-                        }
-                    }
-                    if (!strncmp(entry.name, path, strlen(path))){//compare beginning to check if it is an entry
-                        if (strncmp(entry.name, record, strlen(record))){//compare with previous record to make sure it is not a sub-entry
-                            memcpy(entries[index], entry.name, strlen(entry.name));//if it is an entry but not a sub-entry, we copy it to entries
-                            index++;
-                            strcpy(record, entry.name);//update record to the entry that was listed last
-                        }
-                    }
-                    if (TAR_INT(entry.size)%BLOCKSIZE == 0){
-                        nb2 += (1 + TAR_INT(entry.size)/BLOCKSIZE);
-                    } else {
-                        nb2 += (2 + TAR_INT(entry.size)/BLOCKSIZE);
-                    }
-                }
-                free(record);
-            } else if (header.typeflag == LNKTYPE || header.typeflag == SYMTYPE){//if symlink, we run list with the linked-to directory
-                return list(tar_fd, header.linkname, entries, no_entries);
-            }
-        }
-
-        if (!strlen((char *) &header)){
-            tar_header_t header2;
-            if (pread(tar_fd, &header2, sizeof(tar_header_t), (nb+1)*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
-            if (!strlen((char *) &header2)){
-                *no_entries = 0;
-                return 0;
-            }
-        }
-
-        if (TAR_INT(header.size)%BLOCKSIZE == 0){
-            nb += (1 + TAR_INT(header.size)/BLOCKSIZE);
-        } else {
-            nb += (2 + TAR_INT(header.size)/BLOCKSIZE);
-        }
-    }
-    */
 
     int link = 0;
     int nb = 0;
@@ -342,11 +282,11 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
             if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
 
             if (!strcmp(header.name, path)){//when we find the symbolic link
-                int ret = list(tar_fd, strcat(header.linkname, "/") + 2, entries, no_entries);
-                if (ret){
-                    return ret;
+                if (is_file(tar_fd, header.linkname)){
+                    *no_entries = 0;
+                    return 0;
                 }
-                return list(tar_fd, header.linkname, entries, no_entries);
+                return list(tar_fd, strcat(header.linkname, "/"), entries, no_entries);
             }
 
             if (TAR_INT(header.size)%BLOCKSIZE == 0){
