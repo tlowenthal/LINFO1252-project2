@@ -282,10 +282,6 @@ int list(int tar_fd, char *path, char **entries, size_t *no_entries) {
             if (pread(tar_fd, &header, sizeof(tar_header_t), nb*sizeof(tar_header_t)) < 0) perror("pread error in list\n");
 
             if (!strcmp(header.name, path)){//when we find the symbolic link
-                if (is_file(tar_fd, header.linkname)){
-                    *no_entries = 0;
-                    return 0;
-                }
                 return list(tar_fd, strcat(header.linkname, "/"), entries, no_entries);
             }
 
@@ -367,10 +363,7 @@ ssize_t read_file(int tar_fd, char *path, size_t offset, uint8_t *dest, size_t *
 
         if (!strcmp(header.name, path)){//if we find the file
             if (link){//if link, we run read_file on the link
-                if (is_file(tar_fd, header.linkname)){
-                    return read_file(tar_fd, header.linkname, offset, dest, len);
-                }
-                return read_file(tar_fd, strcat(header.linkname, "/") + 2, offset, dest, len);
+                return read_file(tar_fd, header.linkname, offset, dest, len);
             }else{
                 bytes_to_read = TAR_INT(header.size) - offset; //number of bytes we should read to get to the end of the file
                 if(bytes_to_read < 0){
